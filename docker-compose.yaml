@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  # ========================================
+  # PAR 1: Flask Backend (Ubuntu) + Redis
+  # ========================================
+  
+  flask-backend:
+    build:
+      context: ./flask-app
+      dockerfile: Dockerfile
+    container_name: flask-backend-ubuntu
+    hostname: ubuntu-server
+    networks:
+      - rede-flask-redis
+    depends_on:
+      - redis-db
+    volumes:
+      - flask-data:/data
+    environment:
+      - REDIS_HOST=redis-db
+      - REDIS_PORT=6379
+    ports:
+      - "5000:5000"
+    command: python3 app.py
+
+  redis-db:
+    image: redis:7-alpine
+    container_name: redis-db
+    networks:
+      - rede-flask-redis
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # PAR 2: Node.js Backend (CentOS) + PostgreSQL
+  # ========================================
+  
+  nodejs-backend:
+    build:
+      context: ./nodejs-app
+      dockerfile: Dockerfile
+    container_name: nodejs-backend-centos
+    hostname: centos-server
+    networks:
+      - rede-nodejs-postgres
+    depends_on:
+      - postgres-db
+    volumes:
+      - nodejs-data:/data
+    environment:
+      - DB_HOST=postgres-db
+      - DB_PORT=5432
+      - DB_NAME=tasks_db
+      - DB_USER=admin
+      - DB_PASSWORD=admin123
+    ports:
+      - "3000:3000"
+    command: node server.js
+
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    networks:
+      - rede-nodejs-postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=tasks_db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin123
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d tasks_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ========================================
+# REDES ISOLADAS
+# ========================================
+networks:
+  rede-flask-redis:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  
+  rede-nodejs-postgres:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+# ========================================
+# VOLUMES PERSISTENTES
+# ========================================
+volumes:
+  flask-data:
+    driver: local
+  redis-data:
+    driver: local
+  nodejs-data:
+    driver: local
+  postgres-data:
+    driver: local
