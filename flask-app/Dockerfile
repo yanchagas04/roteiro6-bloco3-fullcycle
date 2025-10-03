@@ -22,3 +22,4 @@ EXPOSE 5000
 
 # Usar python3 no Ubuntu
 CMD ["python3", "app.py"]
+
